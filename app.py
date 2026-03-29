@@ -76,7 +76,7 @@ with st.sidebar:
     if st.session_state.pdf_name:
         st.info(f"Active doc: **{st.session_state.pdf_name}**")
 
-PROMPT = PromptTemplate.from_template(""""I want to answer user questions using ONLY the retrieved document context so that every response is accurate, grounded, and easy to read with zero hallucinations.
+PROMPT = PromptTemplate.from_template("""I want to answer user questions using ONLY the retrieved document context so that every response is accurate, grounded, and easy to read with zero hallucinations.
 
 If the question contains a name or term that closely matches something in the context, treat it as referring to that term and answer accordingly.
 
@@ -146,7 +146,7 @@ else:
                     model="llama-3.3-70b-versatile",
                     api_key=os.getenv("GROQ_API_KEY"),
                     temperature=0,
-                    max_tokens=1024
+                    max_tokens=512
                 )
 
                 retriever = st.session_state.vectorstore.as_retriever(
