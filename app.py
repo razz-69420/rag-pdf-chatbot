@@ -145,7 +145,7 @@ else:
                 llm = ChatGroq(
                     model="llama-3.3-70b-versatile",
                     api_key=os.getenv("GROQ_API_KEY"),
-                    temperature=0.2,
+                    temperature=0,
                     max_tokens=1024
                 )
 
