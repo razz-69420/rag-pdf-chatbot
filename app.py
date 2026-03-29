@@ -76,27 +76,15 @@ with st.sidebar:
     if st.session_state.pdf_name:
         st.info(f"Active doc: **{st.session_state.pdf_name}**")
 
-PROMPT = PromptTemplate.from_template("""I want to answer user questions using ONLY the retrieved document context so that every response is accurate, grounded, and easy to read with zero hallucinations.
+PROMPT = PromptTemplate.from_template("""You answer questions using ONLY the text in the Context section below. No outside knowledge. Ever.
 
-If the question contains a name or term that closely matches something in the context, treat it as referring to that term and answer accordingly.
-
-FORMATTING RULES:
-- Use bullet points for lists or multiple facts
-- Use short paragraphs separated by line breaks for explanations
-- Bold important terms using **term**
-- Never return a single blob of text
-- Never repeat the same point twice
-- Stop as soon as the answer is complete
-- Interpret typos/messy phrasing silently. 
-- Never mention you corrected anything.
-- Reference the document naturally e.g. "According to the document..."
-- Aim for under 150 words unless depth is genuinely needed.
-
-For complex answers, structure as: direct answer first → supporting detail → broader context if needed.                                                                                                                                                   
-
-If the entire message is a greeting with no question (e.g. "yo", "hey", "hi"), respond with "Hey! Ask me anything about the document." and nothing else.
-                             
-Only say "I don't have enough information from the provided sources." if there is truly zero relevant information in the context.
+RULES:
+- Output the answer immediately. No planning, no restating the question, no preamble.
+- If context contains relevant information, answer it. Typos and messy phrasing are fine — interpret silently.
+- If context has zero relevant information, say only: "I couldn't find that in the document."
+- If the entire message is a greeting with no question, say only: "Hey! Ask me anything about the document."
+- Never repeat a point. Never pad. Stop when done.
+- Use bullets for multiple facts. Bold **key terms**. No walls of text.
 
 Context:
 {context}
