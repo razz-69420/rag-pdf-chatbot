@@ -95,8 +95,8 @@ rag-chatbot/
 
 **1. Clone the repo**
 ```bash
-git clone https://github.com/YOUR_USERNAME/rag-chatbot.git
-cd rag-chatbot
+git clone https://github.com/razz-69420/rag-pdf-chatbot.git
+cd rag-pdf-chatbot
 ```
 
 **2. Create a Python 3.11 virtual environment**
