@@ -10,7 +10,6 @@ from langchain_groq import ChatGroq
 from langchain_core.prompts import PromptTemplate
 from langchain_core.runnables import RunnablePassthrough
 from langchain_core.output_parsers import StrOutputParser
-import shutil
 
 load_dotenv()
 
@@ -51,13 +50,9 @@ with st.sidebar:
                 model_name="sentence-transformers/all-MiniLM-L6-v2"
             )
 
-            if os.path.exists("chroma_db"):
-                shutil.rmtree("chroma_db")
-
             vectorstore = Chroma.from_documents(
                 documents=chunks,
-                embedding=embeddings,
-                persist_directory="chroma_db"
+                embedding=embeddings
             )
 
             st.session_state.vectorstore = vectorstore
