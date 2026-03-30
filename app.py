@@ -10,6 +10,7 @@ from langchain_groq import ChatGroq
 from langchain_core.prompts import PromptTemplate
 from langchain_core.runnables import RunnablePassthrough
 from langchain_core.output_parsers import StrOutputParser
+import shutil
 
 load_dotenv()
 
@@ -49,6 +50,10 @@ with st.sidebar:
             embeddings = HuggingFaceEmbeddings(
                 model_name="sentence-transformers/all-MiniLM-L6-v2"
             )
+
+            if os.path.exists("chroma_db"):
+                shutil.rmtree("chroma_db")
+
             vectorstore = Chroma.from_documents(
                 documents=chunks,
                 embedding=embeddings,
@@ -60,7 +65,6 @@ with st.sidebar:
             st.session_state.chat_history = []
             os.unlink(tmp_path)
 
-            # Generate document summary for query expansion
             # Generate document summary for query expansion
             total = len(chunks)
             sample_indices = (
@@ -130,11 +134,13 @@ else:
     for msg in st.session_state.chat_history:
         with st.chat_message(msg["role"]):
             st.markdown(msg["content"])
-            if msg["role"] == "assistant" and "sources" in msg:
-                with st.expander("📎 Sources"):
-                    for i, chunk in enumerate(msg["sources"], 1):
-                        st.markdown(f"**Chunk {i} — Page {chunk.metadata.get('page', 0) + 1}**")
-                        st.caption(chunk.page_content)
+            if msg["role"] == "assistant" and msg.get("sources"):
+                valid_sources = [c for c in msg["sources"] if c.page_content.strip()]
+                if valid_sources:
+                    with st.expander("📎 Sources"):
+                        for i, chunk in enumerate(valid_sources, 1):
+                            st.markdown(f"**Chunk {i} — Page {chunk.metadata.get('page', 0) + 1}**")
+                            st.caption(chunk.page_content)
 
     question = st.chat_input("Ask something about the document...")
 
@@ -168,12 +174,17 @@ else:
                 )
 
                 answer = chain.invoke(question)
-
+                
+                if "I couldn't find that in the document" in answer:
+                    source_docs = []
+            
             st.markdown(answer)
-            with st.expander("📎 Sources"):
-                for i, chunk in enumerate(source_docs, 1):
-                    st.markdown(f"**Chunk {i} — Page {chunk.metadata.get('page', 0) + 1}**")
-                    st.caption(chunk.page_content)
+            valid_sources = [c for c in source_docs if c.page_content.strip()]
+            if valid_sources:
+                with st.expander("📎 Sources"):
+                    for i, chunk in enumerate(valid_sources, 1):
+                        st.markdown(f"**Chunk {i} — Page {chunk.metadata.get('page', 0) + 1}**")
+                        st.caption(chunk.page_content)
 
         st.session_state.chat_history.append({
             "role": "assistant",
