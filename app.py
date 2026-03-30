@@ -40,8 +40,9 @@ with st.sidebar:
             documents = loader.load()
 
             splitter = RecursiveCharacterTextSplitter(
-                chunk_size=700,
-                chunk_overlap=200
+                chunk_size=512,
+                chunk_overlap=80,  # ~15% — sweet spot per benchmarks
+                separators=["\n\n", "\n", ".", " ", ""]
             )
             chunks = splitter.split_documents(documents)
 
@@ -60,15 +61,31 @@ with st.sidebar:
             os.unlink(tmp_path)
 
             # Generate document summary for query expansion
-            full_text = " ".join([doc.page_content[:300] for doc in chunks[:15]])
+            # Generate document summary for query expansion
+            total = len(chunks)
+            sample_indices = (
+                list(range(min(5, total))) +
+                list(range(total//2 - 2, total//2 + 3)) +
+                list(range(max(0, total-5), total))
+            )
+            
+            sample_indices = sorted(set(i for i in sample_indices if 0 <= i < total))
+            full_text = " ".join([chunks[i].page_content[:400] for i in sample_indices])
+            
             summary_llm = ChatGroq(
-                model="llama-3.3-70b-versatile",
+                model="llama-3.1-8b-instant",
                 api_key=os.getenv("GROQ_API_KEY"),
                 temperature=0
             )
             summary_response = summary_llm.invoke(
-                f"Summarize the key topics, names, companies, and terms in this document in 100 words max:\n\n{full_text}"
+                f"""Extract the key topics, named entities, technical terms, and domain-specific vocabulary from this document.
+                Be exhaustive with terminology — prioritize coverage over brevity.
+                Format: comma-separated list of terms and short phrases only. No sentences.
+
+                Document:
+                {full_text}"""
             )
+
             st.session_state.doc_summary = summary_response.content.strip()
 
         st.success(f"✅ {uploaded_file.name} processed — {len(chunks)} chunks indexed")
@@ -76,18 +93,19 @@ with st.sidebar:
     if st.session_state.pdf_name:
         st.info(f"Active doc: **{st.session_state.pdf_name}**")
 
-PROMPT = PromptTemplate.from_template("""You answer questions using ONLY the text in the Context section below. No outside knowledge. Ever.
-
-RULES:
-- Output the answer immediately. No planning, no restating the question, no preamble.
-- If context contains relevant information, answer it. Typos and messy phrasing are fine — interpret silently.
-- If context has zero relevant information, say only: "I couldn't find that in the document."
-- If the entire message is a greeting with no question, say only: "Hey! Ask me anything about the document."
-- Never repeat a point. Never pad. Stop when done.
-- Use bullets for multiple facts. Bold **key terms**. No walls of text.
+PROMPT = PromptTemplate.from_template("""You answer questions using ONLY the retrieved context below. No outside knowledge. Ever.
 
 Context:
 {context}
+
+RULES (follow all, always):
+- Answer immediately. Zero preamble, no restating the question.
+- If the context contains the answer, give it — interpret typos silently.
+- If context has zero relevant info → say only: "I couldn't find that in the document."
+- If the message is a greeting with no question → say only: "Hey! Ask me anything about the document."
+- Never repeat a point. Stop when done. No filler.
+- Use bullets for multiple facts. Bold **key terms**. No walls of text.
+- Cite page numbers inline where available, e.g. *(p. 3)*.
 
 Question: {question}
 
@@ -98,13 +116,10 @@ def format_docs(docs):
 
 def expand_query(question, llm, doc_summary=""):
     response = llm.invoke(
-        f"""You are a spelling corrector for a document search system.
-Fix any spelling mistakes in this search query by matching to the closest term that actually appears in the document summary below.
-Do NOT invent or substitute terms that are not in the summary.
-Return only the corrected query, nothing else.
+        f"""Fix any spelling mistakes in this search query using only terms from the document summary below.
+Do NOT substitute terms not in the summary. Return only the corrected query, nothing else.
 
-Document summary: {doc_summary}
-
+Summary: {doc_summary}
 Query: {question}"""
     )
     return response.content.strip()
@@ -134,7 +149,7 @@ else:
                     model="llama-3.3-70b-versatile",
                     api_key=os.getenv("GROQ_API_KEY"),
                     temperature=0,
-                    max_tokens=512
+                    max_tokens=768
                 )
 
                 retriever = st.session_state.vectorstore.as_retriever(
@@ -143,9 +158,10 @@ else:
 
                 corrected = expand_query(question, llm, st.session_state.doc_summary)
                 source_docs = retriever.invoke(corrected)
+                context = format_docs(source_docs)
 
                 chain = (
-                    {"context": retriever | format_docs, "question": RunnablePassthrough()}
+                    {"context": lambda _: context, "question": RunnablePassthrough()}
                     | PROMPT
                     | llm
                     | StrOutputParser()
